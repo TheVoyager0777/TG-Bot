@@ -1,8 +1,8 @@
-# PhantomControlPlane
+# TG-Bot
 
 集成了 LLM 功能和远程控制台的超级 Bot。
 
-Unified repository for the Phantom Telegram control plane.
+PhantomControlPlane unified repository for the Phantom Telegram control plane.
 
 ## Modules
 
