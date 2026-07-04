@@ -45,6 +45,7 @@ modules/infiniproxy
 .
 ├── README.md
 ├── ARCHITECTURE.md
+├── docs/
 ├── manifest.json
 ├── package.json
 ├── playwright.config.js
@@ -61,16 +62,18 @@ modules/infiniproxy
 
 `APP/` 是本机 Android/外部工作区位置，当前被 `.gitignore` 排除，不属于本仓库核心受管源码。
 
+更完整的模块边界、依赖方向和新增模块规则见 `docs/module-architecture.md`；机器可读模块地图见 `manifest.json`。
+
 ## 模块说明
 
-| 模块 | 路径 | 版本 | 作用 |
-| --- | --- | --- | --- |
-| Telegram Bot | `modules/tg-claude-bot` | `1.10.1` | Telegram owner-only 入口、命令路由、Telegram UI、服务控制、兼容 shim。 |
-| Phantom Console | `modules/phantom-console` | `0.2.0` | Web/PWA 控制台，提供 aiohttp API、静态页面、事件流和任务展示。 |
-| Phantom Network | `modules/phantom-network` | `0.1.0` | 联系人簿、逻辑服务名解析、Cloudflare quick tunnel 域名池。 |
-| LLM Frontend | `LLM_Frontend` | `0.4.0` | LLM 会话守护进程、本地 HTTP API、provider 路由、worker/session 管理。 |
-| LLM Backend | `LLM_Backend` | `0.3.0` | Claude Code / Codex CLI 后端适配，处理流式输出、中断、恢复、工具权限等。 |
-| InfiniProxy | `modules/infiniproxy` | `0.1.0` | OpenAI/Anthropic 兼容 API 代理、admin UI、API key 管理和第三方服务代理。 |
+| 模块 | 功能域 | 路径 | 版本 | 作用 |
+| --- | --- | --- | --- | --- |
+| Telegram Bot | `control-entry` | `modules/tg-claude-bot` | `1.10.1` | Telegram owner-only 入口、命令路由、Telegram UI、服务控制、兼容 shim。 |
+| Phantom Console | `runtime-services` | `modules/phantom-console` | `0.2.0` | Web/PWA 控制台，提供 aiohttp API、静态页面、事件流和任务展示。 |
+| Phantom Network | `runtime-services` | `modules/phantom-network` | `0.1.0` | 联系人簿、逻辑服务名解析、Cloudflare quick tunnel 域名池。 |
+| LLM Frontend | `llm-stack` | `LLM_Frontend` | `0.4.0` | LLM 会话守护进程、本地 HTTP API、provider 路由、worker/session 管理。 |
+| LLM Backend | `llm-stack` | `LLM_Backend` | `0.3.0` | Claude Code / Codex CLI 后端适配，处理流式输出、中断、恢复、工具权限等。 |
+| InfiniProxy | `api-proxy` | `modules/infiniproxy` | `0.1.0` | OpenAI/Anthropic 兼容 API 代理、admin UI、API key 管理和第三方服务代理。 |
 
 ## 主要能力
 
@@ -351,7 +354,9 @@ from llm_backend import registry
 ## 参考文件
 
 - `manifest.json`：权威模块元数据、端口、入口和运行时状态。
-- `ARCHITECTURE.md`：拆分后的模块边界和导入建议。
+- `docs/module-architecture.md`：模块域、职责边界、依赖规则和新增模块流程。
+- `modules/README.md`：`modules/` 目录下服务模块索引。
+- `ARCHITECTURE.md`：短版架构入口，保留给旧引用。
 - `modules/tg-claude-bot/README.md`：Telegram bot 细节。
 - `modules/phantom-console/README.md`：Web/PWA console 细节。
 - `modules/phantom-network/README.md`：联系人和隧道域名池细节。

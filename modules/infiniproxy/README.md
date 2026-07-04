@@ -19,6 +19,34 @@ A local proxy server that translates between OpenAI-compatible API format and Cl
 - ✅ Comprehensive test suite
 - ✅ Easy configuration via environment variables
 
+## Repository Layout
+
+InfiniProxy is intentionally runnable as an independent service module. The most important files are:
+
+```text
+modules/infiniproxy/
+├── proxy_server.py              # FastAPI server and proxy endpoints
+├── phantom_infiniproxy/cli.py   # service lifecycle CLI used by systemd/user
+├── admin_auth.py                # admin authentication helpers
+├── user_manager.py              # user and API key database management
+├── translator.py                # Claude/OpenAI payload translation
+├── static/                      # admin UI assets
+├── k8s/                         # Kubernetes deployment templates
+├── tests/                       # pytest-style tests
+└── test_*.py                    # compatibility and smoke test scripts
+```
+
+Documentation is grouped by topic:
+
+| Topic | Start here |
+| --- | --- |
+| Quick start | `QUICK_START.md`, `QUICKSTART.md` |
+| Client setup | `PROXY_CLIENT_SETUP.md`, `CLIENT_COMPATIBILITY.md`, `WRAPPER_CLIENTS_GUIDE.md` |
+| Migration and compatibility | `MIGRATION_GUIDE.md`, `BACKWARD_COMPATIBILITY.md` |
+| Deployment | `DEPLOYMENT.md`, `DOCKER.md`, `API_KEYS_SETUP.md`, `CONFIG_UPDATE.md` |
+| Integrations | `ELEVENLABS_INTEGRATION.md`, `FIRECRAWL_INTEGRATION.md`, `SERPAPI_INTEGRATION.md`, `TAVILY_INTEGRATION.md`, `AGNO_INTEGRATION_GUIDE.md` |
+| Reports and summaries | `TESTING_SUMMARY.md`, `TEST_RESULTS.md`, `FINAL_TEST_RESULTS.md`, `FINAL_PROJECT_SUMMARY.md` |
+
 ## Architecture
 
 The proxy supports two modes:

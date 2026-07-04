@@ -3,13 +3,68 @@
   "name": "PhantomControlPlane",
   "description": "Unified repo for Telegram bot, Web/PWA console, LLM frontend/backend, and Infiniproxy services.",
   "created_at": "2026-06-26",
+  "domains": [
+    {
+      "id": "control-entry",
+      "label": "Control Entry",
+      "description": "Owner-facing command and UI entrypoints.",
+      "modules": [
+        "tg-claude-bot"
+      ]
+    },
+    {
+      "id": "runtime-services",
+      "label": "Runtime Services",
+      "description": "Local services that expose state, event streams, and service discovery to the bot and console.",
+      "modules": [
+        "phantom-console",
+        "phantom-network"
+      ]
+    },
+    {
+      "id": "llm-stack",
+      "label": "LLM Stack",
+      "description": "Session orchestration and CLI backend adapters for Claude Code, Codex, and compatible LLM workers.",
+      "modules": [
+        "LLM_Frontend",
+        "LLM_Backend"
+      ]
+    },
+    {
+      "id": "api-proxy",
+      "label": "API Proxy",
+      "description": "OpenAI/Anthropic-compatible proxy and related admin/client compatibility tools.",
+      "modules": [
+        "infiniproxy"
+      ]
+    },
+    {
+      "id": "operations",
+      "label": "Operations",
+      "description": "Deployment units, smoke tests, and project-level metadata.",
+      "paths": [
+        "systemd/user",
+        "tests",
+        "manifest.json",
+        "playwright.config.js"
+      ]
+    }
+  ],
   "modules": [
     {
       "id": "tg-claude-bot",
       "path": "modules/tg-claude-bot",
+      "domain": "control-entry",
+      "layer": "interface",
       "kind": "telegram-bot",
       "version": "1.10.1",
       "description": "Telegram control bot for Phantom agent services",
+      "owns": [
+        "Telegram owner-only command routing",
+        "Telegram approval UI and live message rendering",
+        "Compatibility shims for legacy bot imports",
+        "Service orchestration commands"
+      ],
       "entrypoints": {
         "foreground": "python3 bot.py [config.toml]",
         "systemd_user": "systemd/user/tg-claude-bot.service"
@@ -44,9 +99,17 @@
     {
       "id": "phantom-network",
       "path": "modules/phantom-network",
+      "domain": "runtime-services",
+      "layer": "service",
       "kind": "network-contact-book",
       "version": "0.1.0",
       "description": "Contact book and Cloudflare quick tunnel domain pool for Phantom submodules",
+      "owns": [
+        "Stable logical contact names",
+        "Contact registration and lookup",
+        "Cloudflare quick tunnel domain pool",
+        "Compatibility export for existing console links"
+      ],
       "entrypoints": {
         "module": "python3 -m phantom_network.cli serve|start|status|stop|version|register|resolve|contacts",
         "script": "phantom-network",
@@ -75,9 +138,17 @@
     {
       "id": "phantom-console",
       "path": "modules/phantom-console",
+      "domain": "runtime-services",
+      "layer": "service",
       "kind": "web-console",
       "version": "0.2.0",
       "description": "Phantom Web/PWA console service",
+      "owns": [
+        "Web/PWA shell",
+        "Console API and static server",
+        "Event bus and task streaming",
+        "Browser-side rendering assets"
+      ],
       "entrypoints": {
         "module": "python3 -m phantom_console.cli serve|start|status|stop|version",
         "script": "phantom-console",
@@ -95,9 +166,17 @@
     {
       "id": "LLM_Frontend",
       "path": "LLM_Frontend",
+      "domain": "llm-stack",
+      "layer": "orchestration",
       "kind": "llm-frontend-daemon",
       "version": "0.4.0",
       "description": "Phantom LLM_Frontend daemon and local API",
+      "owns": [
+        "LLM session lifecycle",
+        "Worker and peer orchestration",
+        "Provider routing and model discovery",
+        "Local LLM API used by Telegram and console surfaces"
+      ],
       "entrypoints": {
         "module": "python3 -m phantom_llm.daemon serve|start|status|stop|version",
         "script": "phantom-llm",
@@ -138,9 +217,16 @@
     {
       "id": "LLM_Backend",
       "path": "LLM_Backend",
+      "domain": "llm-stack",
+      "layer": "adapter",
       "kind": "llm-cli-backends",
       "version": "0.3.0",
       "description": "Independent CLI backend adapters for Claude Code and Codex",
+      "owns": [
+        "Claude Code CLI adapter",
+        "Codex CLI adapter",
+        "Shared backend stream/interrupt/resume contract"
+      ],
       "entrypoints": {
         "python_package": "llm_backend",
         "backends": [
@@ -169,9 +255,17 @@
     {
       "id": "infiniproxy",
       "path": "modules/infiniproxy",
+      "domain": "api-proxy",
+      "layer": "service",
       "kind": "api-proxy",
       "version": "0.1.0",
       "description": "OpenAI-compatible to Anthropic API proxy service",
+      "owns": [
+        "OpenAI-compatible and Anthropic-compatible proxy APIs",
+        "Proxy admin UI and API key management",
+        "Client compatibility helpers",
+        "Search, scrape, TTS, and STT proxy integrations"
+      ],
       "entrypoints": {
         "module": "python3 -m phantom_infiniproxy.cli serve|start|status|stop|version",
         "script": "phantom-infiniproxy",
