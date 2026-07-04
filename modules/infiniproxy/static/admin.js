@@ -1,0 +1,1081 @@
+// API Base URL
+const API_BASE = window.location.origin;
+
+// State
+let users = [];
+let apiKeys = [];
+let backends = [];
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOMContentLoaded - initializing admin panel');
+    setupTabs();
+    setupLogout();
+    loadUsers();
+    loadAPIKeys();
+    loadBackends();
+
+    // Setup form handlers
+    document.getElementById('create-user-form').addEventListener('submit', handleCreateUser);
+    document.getElementById('create-key-form').addEventListener('submit', handleCreateKey);
+
+    const backendForm = document.getElementById('create-backend-form');
+    if (backendForm) {
+        console.log('Backend form found, attaching event listener');
+        backendForm.addEventListener('submit', handleCreateBackend);
+    } else {
+        console.error('Backend form not found!');
+    }
+
+    const editBackendForm = document.getElementById('edit-backend-form');
+    if (editBackendForm) {
+        console.log('Edit backend form found, attaching event listener');
+        editBackendForm.addEventListener('submit', handleEditBackend);
+    } else {
+        console.error('Edit backend form not found!');
+    }
+
+    document.getElementById('filter-user').addEventListener('change', handleFilterKeys);
+    document.getElementById('batch-create-btn').addEventListener('click', handleBatchCreate);
+
+    console.log('All event listeners attached');
+});
+
+// Fetch wrapper with authentication error handling
+async function fetchWithAuth(url, options = {}) {
+    options.credentials = 'include';  // Include cookies
+
+    const response = await fetch(url, options);
+
+    // Handle authentication errors
+    if (response.status === 401) {
+        showAlert('Session expired. Please login again.', 'error');
+        setTimeout(() => {
+            window.location.href = '/admin/login-page';
+        }, 2000);
+        throw new Error('Authentication required');
+    }
+
+    return response;
+}
+
+// Logout functionality
+function setupLogout() {
+    // Add logout button to header if not exists
+    const header = document.querySelector('.header');
+    if (header && !document.getElementById('logout-btn')) {
+        const logoutBtn = document.createElement('button');
+        logoutBtn.id = 'logout-btn';
+        logoutBtn.className = 'btn btn-secondary';
+        logoutBtn.textContent = 'Logout';
+        logoutBtn.style.cssText = 'position: absolute; top: 20px; right: 20px;';
+        logoutBtn.addEventListener('click', handleLogout);
+        header.style.position = 'relative';
+        header.appendChild(logoutBtn);
+    }
+}
+
+async function handleLogout() {
+    try {
+        await fetchWithAuth('/admin/logout', { method: 'POST' });
+        showAlert('Logged out successfully', 'success');
+        setTimeout(() => {
+            window.location.href = '/admin/login-page';
+        }, 1000);
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
+}
+
+// Tab Management
+function setupTabs() {
+    const tabs = document.querySelectorAll('.tab');
+    tabs.forEach(tab => {
+        tab.addEventListener('click', () => {
+            const tabName = tab.dataset.tab;
+            switchTab(tabName);
+        });
+    });
+}
+
+function switchTab(tabName) {
+    // Update tab buttons
+    document.querySelectorAll('.tab').forEach(tab => {
+        tab.classList.remove('active');
+        if (tab.dataset.tab === tabName) {
+            tab.classList.add('active');
+        }
+    });
+
+    // Update tab content
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    document.getElementById(`tab-${tabName}`).classList.add('active');
+}
+
+// Alert Management
+function showAlert(message, type = 'success') {
+    const alert = document.getElementById('alert');
+    alert.className = `alert alert-${type} show`;
+    alert.textContent = message;
+
+    setTimeout(() => {
+        alert.classList.remove('show');
+    }, 5000);
+}
+
+// Users Management
+async function loadUsers() {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/users`);
+        const data = await response.json();
+        users = data.users;
+
+        displayUsers(users);
+        populateUserSelects();
+
+        document.getElementById('users-loading').style.display = 'none';
+        document.getElementById('users-list').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading users:', error);
+        showAlert('Failed to load users', 'error');
+    }
+}
+
+function displayUsers(usersList) {
+    const tbody = document.getElementById('users-table-body');
+
+    if (usersList.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    <div class="empty-state-icon">👤</div>
+                    <div>No users found. Create your first user above!</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = usersList.map(user => `
+        <tr>
+            <td>${user.id}</td>
+            <td><strong>${user.username}</strong></td>
+            <td>${user.email || '-'}</td>
+            <td>${formatDate(user.created_at)}</td>
+            <td>
+                <span class="badge ${user.is_active ? 'badge-success' : 'badge-danger'}">
+                    ${user.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>
+                <div class="actions">
+                    <button class="btn btn-primary btn-sm" onclick="viewUserKeys(${user.id})">
+                        View Keys
+                    </button>
+                    ${user.email ? `
+                        <button class="btn btn-primary btn-sm" onclick="generateAndSendKey(${user.id}, '${user.username}', '${user.email}')" title="Generate new API key and send via email">
+                            📧 Send Key
+                        </button>
+                    ` : ''}
+                    <button class="btn btn-danger btn-sm" onclick="deleteUser(${user.id}, '${user.username}')">
+                        Delete
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function handleCreateUser(e) {
+    e.preventDefault();
+
+    const username = document.getElementById('username').value;
+    const email = document.getElementById('email').value;
+
+    try {
+        const url = `${API_BASE}/admin/users?username=${encodeURIComponent(username)}` +
+                    (email ? `&email=${encodeURIComponent(email)}` : '');
+
+        const response = await fetchWithAuth(url, { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            // Show the API key in a prominent alert (only time it's shown!)
+            const alertDiv = document.getElementById('alert');
+            alertDiv.className = 'alert alert-warning show';
+
+            const emailStatus = data.email_sent
+                ? '✅ Email sent successfully to ' + email
+                : (email ? '⚠️ Email sending failed or no email provided' : '');
+
+            const sendEmailButton = email
+                ? `<button class="btn btn-primary btn-sm" onclick="sendAPIKeyEmail(${data.user_id}, '${data.api_key}', '${email}')">📧 Send Email</button>`
+                : '';
+
+            alertDiv.innerHTML = `
+                <strong>✅ User "${username}" created successfully!</strong><br><br>
+                ${emailStatus ? emailStatus + '<br><br>' : ''}
+                <strong>⚠️ SAVE THIS API KEY - IT WILL NOT BE SHOWN AGAIN!</strong><br><br>
+                <div class="code-block">${data.api_key}</div>
+                <br>
+                ${sendEmailButton}
+                <small>A default API key has been automatically generated for this user. Copy it now and store it securely.</small>
+            `;
+
+            document.getElementById('create-user-form').reset();
+            await loadUsers();
+            await loadAPIKeys(); // Refresh keys list too
+        } else {
+            showAlert(data.detail || 'Failed to create user', 'error');
+        }
+    } catch (error) {
+        console.error('Error creating user:', error);
+        showAlert('Failed to create user', 'error');
+    }
+}
+
+async function handleBatchCreate() {
+    const fileInput = document.getElementById('batch-csv-file');
+    const textInput = document.getElementById('batch-csv-text');
+    const btn = document.getElementById('batch-create-btn');
+
+    try {
+        btn.disabled = true;
+        btn.textContent = 'Creating users...';
+
+        const formData = new FormData();
+
+        // Check if file is uploaded
+        if (fileInput.files && fileInput.files.length > 0) {
+            formData.append('csv_file', fileInput.files[0]);
+        }
+        // Otherwise check if text is provided
+        else if (textInput.value.trim()) {
+            formData.append('csv_text', textInput.value.trim());
+        }
+        else {
+            showAlert('Please upload a CSV file or paste CSV text', 'error');
+            btn.disabled = false;
+            btn.textContent = 'Batch Create Users';
+            return;
+        }
+
+        const response = await fetchWithAuth(`${API_BASE}/admin/users/batch`, {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            // Download the result CSV
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'users_with_keys.csv';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+            showAlert('Batch user creation completed! Download the CSV with API keys.', 'success');
+
+            // Clear inputs
+            fileInput.value = '';
+            textInput.value = '';
+
+            // Reload users and keys
+            await loadUsers();
+            await loadAPIKeys();
+        } else {
+            const data = await response.json();
+            showAlert(data.detail || 'Batch creation failed', 'error');
+        }
+    } catch (error) {
+        console.error('Batch creation error:', error);
+        showAlert('Batch creation failed', 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Batch Create Users';
+    }
+}
+
+function populateUserSelects() {
+    const selects = [
+        document.getElementById('key-user-id'),
+        document.getElementById('filter-user'),
+        document.getElementById('user-usage-id')
+    ].filter(s => s !== null);  // Filter out null elements
+
+    selects.forEach(select => {
+        const currentValue = select.value;
+        const isFilter = select.id === 'filter-user';
+
+        // Keep the first option (placeholder or "All Users")
+        const firstOption = select.options[0];
+        select.innerHTML = '';
+        select.appendChild(firstOption);
+
+        users.forEach(user => {
+            const option = document.createElement('option');
+            option.value = user.id;
+            option.textContent = `${user.username} (ID: ${user.id})`;
+            select.appendChild(option);
+        });
+
+        // Restore previous selection
+        if (currentValue) {
+            select.value = currentValue;
+        }
+    });
+}
+
+function viewUserKeys(userId) {
+    switchTab('keys');
+    document.getElementById('filter-user').value = userId;
+    handleFilterKeys();
+}
+
+// API Keys Management
+async function loadAPIKeys(userId = null) {
+    try {
+        const url = userId
+            ? `${API_BASE}/admin/api-keys?user_id=${userId}`
+            : `${API_BASE}/admin/api-keys`;
+
+        const response = await fetchWithAuth(url);
+        const data = await response.json();
+        apiKeys = data.api_keys;
+
+        displayAPIKeys(apiKeys);
+        populateUsageKeySelect();
+
+        document.getElementById('keys-loading').style.display = 'none';
+        document.getElementById('keys-list').style.display = 'block';
+    } catch (error) {
+        console.error('Error loading API keys:', error);
+        showAlert('Failed to load API keys', 'error');
+    }
+}
+
+function displayAPIKeys(keysList) {
+    const tbody = document.getElementById('keys-table-body');
+
+    if (keysList.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="empty-state">
+                    <div class="empty-state-icon">🔑</div>
+                    <div>No API keys found. Create your first key above!</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = keysList.map(key => `
+        <tr>
+            <td>${key.id}</td>
+            <td>${key.user_id}</td>
+            <td><code class="key-display">${key.key_prefix}...</code></td>
+            <td>${key.name || '-'}</td>
+            <td><code class="key-display">${key.model_name || 'Default'}</code></td>
+            <td>${formatDate(key.created_at)}</td>
+            <td>${key.last_used_at ? formatDate(key.last_used_at) : 'Never'}</td>
+            <td>
+                <span class="badge ${key.is_active ? 'badge-success' : 'badge-danger'}">
+                    ${key.is_active ? 'Active' : 'Inactive'}
+                </span>
+            </td>
+            <td>
+                <div class="actions">
+                    ${key.is_active ? `
+                        <button class="btn btn-danger btn-sm" onclick="deactivateKey(${key.id})">
+                            Deactivate
+                        </button>
+                    ` : ''}
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function handleCreateKey(e) {
+    e.preventDefault();
+
+    const userId = document.getElementById('key-user-id').value;
+    const keyName = document.getElementById('key-name').value;
+
+    if (!userId) {
+        showAlert('Please select a user', 'error');
+        return;
+    }
+
+    try {
+        const url = `${API_BASE}/admin/api-keys?user_id=${userId}` +
+                    (keyName ? `&name=${encodeURIComponent(keyName)}` : '');
+
+        const response = await fetchWithAuth(url, { method: 'POST' });
+        const data = await response.json();
+
+        if (response.ok) {
+            // Get user email for send button
+            const user = users.find(u => u.id === parseInt(userId));
+            const userEmail = user ? user.email : null;
+
+            // Show the API key in an alert (only time it's shown!)
+            const alertDiv = document.getElementById('alert');
+            alertDiv.className = 'alert alert-warning show';
+
+            const emailStatus = data.email_sent
+                ? '✅ Email sent successfully to ' + userEmail
+                : (userEmail ? '⚠️ Email sending failed or no email provided' : '');
+
+            const sendEmailButton = userEmail
+                ? `<button class="btn btn-primary btn-sm" onclick="sendAPIKeyEmail(${userId}, '${data.api_key}', '${userEmail}')">📧 Send Email</button>`
+                : '';
+
+            alertDiv.innerHTML = `
+                <strong>✅ API Key created successfully!</strong><br><br>
+                ${emailStatus ? emailStatus + '<br><br>' : ''}
+                <strong>⚠️ SAVE THIS API KEY - IT WILL NOT BE SHOWN AGAIN!</strong><br><br>
+                <div class="code-block">${data.api_key}</div>
+                <br>
+                ${sendEmailButton}
+                <small>Copy this key now and store it securely.</small>
+            `;
+
+            document.getElementById('create-key-form').reset();
+            await loadAPIKeys();
+        } else{
+            showAlert(data.detail || 'Failed to create API key', 'error');
+        }
+    } catch (error) {
+        console.error('Error creating API key:', error);
+        showAlert('Failed to create API key', 'error');
+    }
+}
+
+async function sendAPIKeyEmail(userId, apiKey, email) {
+    try {
+        const response = await fetchWithAuth(
+            `${API_BASE}/admin/send-api-key-email?user_id=${userId}&api_key=${encodeURIComponent(apiKey)}` +
+            (email ? `&email=${encodeURIComponent(email)}` : ''),
+            { method: 'POST' }
+        );
+
+        const data = await response.json();
+
+        if (response.ok) {
+            showAlert(`✅ API key email sent successfully to ${data.email}`, 'success');
+        } else {
+            showAlert(data.detail || 'Failed to send email', 'error');
+        }
+    } catch (error) {
+        console.error('Error sending API key email:', error);
+        showAlert('Failed to send email', 'error');
+    }
+}
+
+async function deactivateKey(keyId) {
+    if (!confirm('Are you sure you want to deactivate this API key? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/api-keys/${keyId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert('API key deactivated successfully', 'success');
+            await loadAPIKeys();
+        } else {
+            const data = await response.json();
+            showAlert(data.detail || 'Failed to deactivate API key', 'error');
+        }
+    } catch (error) {
+        console.error('Error deactivating API key:', error);
+        showAlert('Failed to deactivate API key', 'error');
+    }
+}
+
+async function deleteUser(userId, username) {
+    if (!confirm(`Are you sure you want to delete user "${username}"?\n\nThis will permanently delete:\n- The user account\n- All API keys for this user\n- All usage records\n\nThis action CANNOT be undone!`)) {
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/users/${userId}`, {
+            method: 'DELETE'
+        });
+
+        if (response.ok) {
+            showAlert(`User "${username}" deleted successfully`, 'success');
+            await loadUsers();
+            await loadAPIKeys(); // Refresh keys list too
+        } else {
+            const data = await response.json();
+            showAlert(data.detail || 'Failed to delete user', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        showAlert('Failed to delete user', 'error');
+    }
+}
+
+async function generateAndSendKey(userId, username, email) {
+    if (!confirm(`Generate a new API key for "${username}" and send it to ${email}?`)) {
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth(
+            `${API_BASE}/admin/users/${userId}/generate-and-send-key`,
+            { method: 'POST' }
+        );
+
+        const data = await response.json();
+
+        if (response.ok) {
+            const alertDiv = document.getElementById('alert');
+            alertDiv.className = 'alert alert-warning show';
+
+            const emailStatus = data.email_sent
+                ? `✅ Email sent successfully to ${email}`
+                : `⚠️ Email sending failed`;
+
+            alertDiv.innerHTML = `
+                <strong>✅ New API key generated for "${username}"!</strong><br><br>
+                ${emailStatus}<br><br>
+                <strong>⚠️ SAVE THIS API KEY - IT WILL NOT BE SHOWN AGAIN!</strong><br><br>
+                <div class="code-block">${data.api_key}</div>
+                <br>
+                <small>Copy this key now and store it securely.</small>
+            `;
+
+            await loadAPIKeys(); // Refresh keys list
+        } else {
+            showAlert(data.detail || 'Failed to generate and send API key', 'error');
+        }
+    } catch (error) {
+        console.error('Error generating and sending API key:', error);
+        showAlert('Failed to generate and send API key', 'error');
+    }
+}
+
+function handleFilterKeys() {
+    const userId = document.getElementById('filter-user').value;
+    if (userId) {
+        loadAPIKeys(parseInt(userId));
+    } else {
+        loadAPIKeys();
+    }
+}
+
+function populateUsageKeySelect() {
+    const select = document.getElementById('usage-key-id');
+    const currentValue = select.value;
+
+    select.innerHTML = '<option value="">Select an API key...</option>';
+
+    apiKeys.forEach(key => {
+        const user = users.find(u => u.id === key.user_id);
+        const userName = user ? user.username : `User ${key.user_id}`;
+        const option = document.createElement('option');
+        option.value = key.id;
+        option.textContent = `${userName} - ${key.name || 'Unnamed'} (${key.key_prefix}...)`;
+        select.appendChild(option);
+    });
+
+    if (currentValue) {
+        select.value = currentValue;
+    }
+}
+
+// Usage Statistics
+async function loadUsageStats() {
+    const keyId = document.getElementById('usage-key-id').value;
+
+    if (!keyId) {
+        showAlert('Please select an API key', 'error');
+        return;
+    }
+
+    document.getElementById('usage-loading').style.display = 'block';
+    document.getElementById('usage-stats').style.display = 'none';
+
+    try {
+        // Load basic usage stats
+        const response = await fetch(`${API_BASE}/usage/api-key/${keyId}`);
+        const data = await response.json();
+
+        // Load per-API-key backend usage
+        const backendResponse = await fetchWithAuth(`${API_BASE}/usage/api-key/${keyId}/by-backend`);
+        const backendData = await backendResponse.json();
+
+        if (response.ok && backendResponse.ok) {
+            displayUsageStats(data);
+            displayKeyBackendUsage(backendData);
+            document.getElementById('usage-stats').style.display = 'block';
+        } else {
+            showAlert('Failed to load usage statistics', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading usage stats:', error);
+        showAlert('Failed to load usage statistics', 'error');
+    } finally {
+        document.getElementById('usage-loading').style.display = 'none';
+    }
+}
+
+function displayUsageStats(data) {
+    document.getElementById('stat-requests').textContent = formatNumber(data.total_requests);
+    document.getElementById('stat-input').textContent = formatNumber(data.total_input_tokens);
+    document.getElementById('stat-output').textContent = formatNumber(data.total_output_tokens);
+    document.getElementById('stat-total').textContent = formatNumber(data.total_tokens);
+}
+
+function displayKeyBackendUsage(data) {
+    const tbody = document.getElementById('key-backend-usage-table-body');
+
+    if (!data.usage_by_backend || data.usage_by_backend.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <div>No backend usage data found for this API key.</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = data.usage_by_backend.map(usage => `
+        <tr>
+            <td><code class="key-display">${usage.backend_url || 'Unknown'}</code></td>
+            <td><code class="key-display">${usage.model || 'Unknown'}</code></td>
+            <td>${formatNumber(usage.total_requests)}</td>
+            <td>${formatNumber(usage.total_input_tokens)}</td>
+            <td>${formatNumber(usage.total_output_tokens)}</td>
+            <td><strong>${formatNumber(usage.total_tokens)}</strong></td>
+        </tr>
+    `).join('');
+}
+
+// Backend Usage Statistics
+async function loadBackendUsage() {
+    document.getElementById('backend-usage-loading').style.display = 'block';
+    document.getElementById('backend-usage-stats').style.display = 'none';
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/usage/by-backend`);
+        const data = await response.json();
+
+        if (response.ok) {
+            displayBackendUsage(data);
+            document.getElementById('backend-usage-stats').style.display = 'block';
+        } else {
+            showAlert('Failed to load backend usage statistics', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading backend usage:', error);
+        showAlert('Failed to load backend usage statistics', 'error');
+    } finally {
+        document.getElementById('backend-usage-loading').style.display = 'none';
+    }
+}
+
+function displayBackendUsage(data) {
+    // Update summary stats
+    document.getElementById('backend-stat-requests').textContent = formatNumber(data.total_requests);
+    document.getElementById('backend-stat-input').textContent = formatNumber(data.total_input_tokens);
+    document.getElementById('backend-stat-output').textContent = formatNumber(data.total_output_tokens);
+    document.getElementById('backend-stat-total').textContent = formatNumber(data.total_tokens);
+
+    // Display table
+    const tbody = document.getElementById('backend-usage-table-body');
+
+    if (!data.usage_by_backend || data.usage_by_backend.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <div>No backend usage data found. Start making API requests to see statistics.</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = data.usage_by_backend.map(usage => `
+        <tr>
+            <td><code class="key-display">${usage.backend_url || 'Unknown'}</code></td>
+            <td><code class="key-display">${usage.model || 'Unknown'}</code></td>
+            <td>${formatNumber(usage.total_requests)}</td>
+            <td>${formatNumber(usage.total_input_tokens)}</td>
+            <td>${formatNumber(usage.total_output_tokens)}</td>
+            <td><strong>${formatNumber(usage.total_tokens)}</strong></td>
+        </tr>
+    `).join('');
+}
+
+// User Backend Usage Statistics
+async function loadUserBackendUsage() {
+    const userId = document.getElementById('user-usage-id').value;
+
+    if (!userId) {
+        showAlert('Please select a user', 'error');
+        return;
+    }
+
+    document.getElementById('user-backend-usage-loading').style.display = 'block';
+    document.getElementById('user-backend-usage-stats').style.display = 'none';
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/users/${userId}/usage/by-backend`);
+        const data = await response.json();
+
+        if (response.ok) {
+            displayUserBackendUsage(data);
+            document.getElementById('user-backend-usage-stats').style.display = 'block';
+        } else {
+            showAlert('Failed to load user backend usage statistics', 'error');
+        }
+    } catch (error) {
+        console.error('Error loading user backend usage:', error);
+        showAlert('Failed to load user backend usage statistics', 'error');
+    } finally {
+        document.getElementById('user-backend-usage-loading').style.display = 'none';
+    }
+}
+
+function displayUserBackendUsage(data) {
+    // Update summary stats
+    document.getElementById('user-backend-stat-requests').textContent = formatNumber(data.total_requests);
+    document.getElementById('user-backend-stat-input').textContent = formatNumber(data.total_input_tokens);
+    document.getElementById('user-backend-stat-output').textContent = formatNumber(data.total_output_tokens);
+    document.getElementById('user-backend-stat-total').textContent = formatNumber(data.total_tokens);
+
+    // Display table
+    const tbody = document.getElementById('user-backend-usage-table-body');
+
+    if (!data.usage_by_backend || data.usage_by_backend.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="empty-state">
+                    <div class="empty-state-icon">📊</div>
+                    <div>No backend usage data found for this user.</div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = data.usage_by_backend.map(usage => `
+        <tr>
+            <td><code class="key-display">${usage.backend_url || 'Unknown'}</code></td>
+            <td><code class="key-display">${usage.model || 'Unknown'}</code></td>
+            <td>${formatNumber(usage.total_requests)}</td>
+            <td>${formatNumber(usage.total_input_tokens)}</td>
+            <td>${formatNumber(usage.total_output_tokens)}</td>
+            <td><strong>${formatNumber(usage.total_tokens)}</strong></td>
+        </tr>
+    `).join('');
+}
+
+// Utility Functions
+function formatDate(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function formatNumber(num) {
+    if (num === undefined || num === null) return '0';
+    return num.toLocaleString('en-US');
+}
+
+// ===== Backend Management Functions =====
+
+// Load all backends
+async function loadBackends() {
+    const loading = document.getElementById('backends-loading');
+    const list = document.getElementById('backends-list');
+    const tbody = document.getElementById('backends-table-body');
+
+    try {
+        console.log('Loading backends...');
+        loading.style.display = 'block';
+        list.style.display = 'none';
+
+        const response = await fetch(`${API_BASE}/admin/backends?active_only=false`);
+
+        console.log('Backends response status:', response.status);
+        if (!response.ok) throw new Error('Failed to load backends');
+
+        backends = await response.json();
+        console.log('Loaded backends:', backends);
+
+        if (backends.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="empty-state">
+                        <div class="empty-state-icon">🔧</div>
+                        <div>No backend services configured yet.</div>
+                    </td>
+                </tr>
+            `;
+        } else {
+            tbody.innerHTML = backends.map(backend => `
+                <tr>
+                    <td>${backend.id}</td>
+                    <td><code class="key-display">${backend.short_name}</code></td>
+                    <td>${backend.name}</td>
+                    <td><code class="key-display" style="font-size: 10px; max-width: 300px; overflow: hidden; text-overflow: ellipsis; display: block;">${backend.base_url}</code></td>
+                    <td><code class="key-display">...${backend.api_key_masked}</code></td>
+                    <td>${backend.default_model || '-'}</td>
+                    <td>
+                        <span class="badge ${backend.is_active ? 'badge-success' : 'badge-danger'}">
+                            ${backend.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        ${backend.is_default ? '<span class="badge badge-success">Yes</span>' : '-'}
+                    </td>
+                    <td class="actions">
+                        <button class="btn btn-sm btn-primary" onclick='openEditBackendModal(${JSON.stringify(backend)})'>
+                            Edit
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="handleToggleBackendStatus(${backend.id}, ${!backend.is_active})">
+                            ${backend.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                        ${!backend.is_default ? `
+                            <button class="btn btn-sm btn-primary" onclick="handleSetDefaultBackend(${backend.id})">
+                                Set Default
+                            </button>
+                        ` : ''}
+                        <button class="btn btn-sm btn-danger" onclick="handleDeleteBackend(${backend.id})">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        loading.style.display = 'none';
+        list.style.display = 'block';
+    } catch (error) {
+        console.error('Error loading backends:', error);
+        showAlert('Failed to load backends: ' + error.message, 'error');
+        loading.style.display = 'none';
+    }
+}
+
+// Create new backend
+async function handleCreateBackend(e) {
+    console.log('handleCreateBackend called');
+    if (e) {
+        e.preventDefault();
+        console.log('Default prevented');
+    }
+
+    const data = {
+        short_name: document.getElementById('backend-short-name').value,
+        name: document.getElementById('backend-name').value,
+        base_url: document.getElementById('backend-base-url').value,
+        api_key: document.getElementById('backend-api-key').value,
+        default_model: document.getElementById('backend-default-model').value || null,
+        is_default: document.getElementById('backend-is-default').value === 'true'
+    };
+
+    console.log('Creating backend with data:', data);
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/backends`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        console.log('Create backend response status:', response.status);
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to create backend');
+        }
+
+        const result = await response.json();
+        console.log('Backend created successfully:', result);
+        showAlert(result.message, 'success');
+
+        // Reset form
+        document.getElementById('create-backend-form').reset();
+
+        // Reload backends
+        await loadBackends();
+    } catch (error) {
+        console.error('Error creating backend:', error);
+        showAlert('Failed to create backend: ' + error.message, 'error');
+    }
+}
+
+// Toggle backend active status
+async function handleToggleBackendStatus(backendId, newStatus) {
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/backends/${backendId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_active: newStatus })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update backend');
+        }
+
+        const result = await response.json();
+        showAlert(result.message, 'success');
+
+        // Reload backends
+        await loadBackends();
+    } catch (error) {
+        console.error('Error toggling backend status:', error);
+        showAlert('Failed to toggle backend status: ' + error.message, 'error');
+    }
+}
+
+// Set backend as default
+async function handleSetDefaultBackend(backendId) {
+    if (!confirm('Set this backend as the default? This will unset any other default backend.')) {
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/backends/${backendId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ is_default: true })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to set default backend');
+        }
+
+        const result = await response.json();
+        showAlert(result.message, 'success');
+
+        // Reload backends
+        await loadBackends();
+    } catch (error) {
+        console.error('Error setting default backend:', error);
+        showAlert('Failed to set default backend: ' + error.message, 'error');
+    }
+}
+
+// Delete backend
+async function handleDeleteBackend(backendId) {
+    if (!confirm('Are you sure you want to delete this backend? This will fail if any API keys are using it.')) {
+        return;
+    }
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/backends/${backendId}`, {
+            method: 'DELETE'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to delete backend');
+        }
+
+        const result = await response.json();
+        showAlert(result.message, 'success');
+
+        // Reload backends
+        await loadBackends();
+    } catch (error) {
+        console.error('Error deleting backend:', error);
+        showAlert('Failed to delete backend: ' + error.message, 'error');
+    }
+}
+
+// Open edit backend modal
+function openEditBackendModal(backend) {
+    console.log('Opening edit modal for backend:', backend);
+
+    // Populate form fields
+    document.getElementById('edit-backend-id').value = backend.id;
+    document.getElementById('edit-backend-short-name').value = backend.short_name;
+    document.getElementById('edit-backend-name').value = backend.name;
+    document.getElementById('edit-backend-base-url').value = backend.base_url;
+    document.getElementById('edit-backend-api-key').value = backend.api_key;
+    document.getElementById('edit-backend-default-model').value = backend.default_model || '';
+    document.getElementById('edit-backend-is-default').value = backend.is_default ? 'true' : 'false';
+
+    // Show modal
+    document.getElementById('edit-backend-modal').classList.add('show');
+}
+
+// Close edit backend modal
+function closeEditBackendModal() {
+    document.getElementById('edit-backend-modal').classList.remove('show');
+    document.getElementById('edit-backend-form').reset();
+}
+
+// Handle edit backend form submission
+async function handleEditBackend(e) {
+    console.log('handleEditBackend called');
+    if (e) {
+        e.preventDefault();
+        console.log('Default prevented');
+    }
+
+    const backendId = document.getElementById('edit-backend-id').value;
+    const data = {
+        short_name: document.getElementById('edit-backend-short-name').value,
+        name: document.getElementById('edit-backend-name').value,
+        base_url: document.getElementById('edit-backend-base-url').value,
+        api_key: document.getElementById('edit-backend-api-key').value,
+        default_model: document.getElementById('edit-backend-default-model').value || null,
+        is_default: document.getElementById('edit-backend-is-default').value === 'true'
+    };
+
+    console.log('Editing backend', backendId, 'with data:', data);
+
+    try {
+        const response = await fetchWithAuth(`${API_BASE}/admin/backends/${backendId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        console.log('Edit backend response status:', response.status);
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to update backend');
+        }
+
+        const result = await response.json();
+        console.log('Backend updated successfully:', result);
+        showAlert(result.message, 'success');
+
+        // Close modal
+        closeEditBackendModal();
+
+        // Reload backends
+        await loadBackends();
+    } catch (error) {
+        console.error('Error updating backend:', error);
+        showAlert('Failed to update backend: ' + error.message, 'error');
+    }
+}

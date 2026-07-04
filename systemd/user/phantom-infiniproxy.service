@@ -1,0 +1,21 @@
+[Unit]
+Description=Phantom Infiniproxy service
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/infiniproxy/.env
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/infiniproxy
+Environment=PYTHONPATH=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/infiniproxy
+Environment=PATH=/home/voyager/.nvm/versions/node/v24.15.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PROXY_HOST=127.0.0.1
+Environment=PROXY_PORT=8010
+ExecStart=/usr/bin/python3 -m phantom_infiniproxy.cli --pidfile /home/voyager/.config/phantom-infiniproxy/phantom-infiniproxy.pid serve --env-file /home/voyager/桌面/Workspace/PhantomControlPlane/modules/infiniproxy/.env --host 127.0.0.1 --port 8010
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

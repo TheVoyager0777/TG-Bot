@@ -1,0 +1,19 @@
+[Unit]
+Description=Phantom Web/PWA console service
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/voyager/桌面/Workspace/PhantomControlPlane
+Environment=PYTHONPATH=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/phantom-console:/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot
+Environment=PATH=/home/voyager/.nvm/versions/node/v24.15.0/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 -m phantom_console.cli --pidfile /home/voyager/.config/phantom-console/phantom-console.pid serve --config /home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

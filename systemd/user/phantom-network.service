@@ -1,0 +1,19 @@
+[Unit]
+Description=Phantom Network contact book and Cloudflare domain pool
+After=network-online.target phantom-console.service
+Wants=network-online.target phantom-console.service
+ConditionPathExists=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/voyager/桌面/Workspace/PhantomControlPlane
+Environment=PYTHONPATH=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/phantom-network:/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot
+Environment=PATH=/home/voyager/.nvm/versions/node/v24.15.0/bin:/usr/local/bin:/usr/bin:/bin:/home/voyager/.local/bin
+ExecStart=/usr/bin/python3 -m phantom_network.cli --pidfile /home/voyager/.config/phantom-network/phantom-network.pid serve --config /home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml --netns none --no-netns-autostart
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

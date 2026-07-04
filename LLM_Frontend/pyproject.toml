@@ -1,0 +1,16 @@
+[project]
+name = "phantom-llm"
+version = "0.4.0"
+description = "Phantom LLM_Frontend service"
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp>=3.9",
+  "claude-agent-sdk>=0.2",
+  "tomli_w>=1",
+]
+
+[project.scripts]
+phantom-llm = "phantom_llm.daemon:main"
+
+[tool.setuptools]
+packages = ["phantom_llm", "phantom_llm.tools"]

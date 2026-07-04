@@ -1,0 +1,43 @@
+__pycache__/
+*.py[cod]
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+node_modules/
+test-results/
+playwright-report/
+
+# External Android worktrees/toolchains
+APP/Toolchain/
+APP/rikkahub/
+
+# Runtime secrets/state
+modules/tg-claude-bot/config.toml
+modules/tg-claude-bot/providers.toml
+modules/tg-claude-bot/.runtime/
+modules/tg-claude-bot/tg_forward_state.json
+modules/tg-claude-bot/core/tg_forward_state.json
+modules/infiniproxy/.env
+modules/infiniproxy/.env.*
+!modules/infiniproxy/.env.example
+modules/infiniproxy/.claude/
+modules/infiniproxy/proxy_users.db
+modules/infiniproxy/proxy_users.db*
+modules/infiniproxy/*.db
+modules/infiniproxy/*.db*
+modules/infiniproxy/*.sqlite
+modules/infiniproxy/*.sqlite3
+modules/infiniproxy/k8s/secrets.yaml
+.agentmem/
+.claude/
+state/
+run/
+
+# Local editor/system
+.DS_Store
+.vscode/
+*.bak
+*.bak.*

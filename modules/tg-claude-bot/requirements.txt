@@ -1,0 +1,6 @@
+python-telegram-bot>=21
+psutil>=5.9
+claude-agent-sdk>=0.2
+tomli>=2 ; python_version < "3.11"
+tomli_w>=1
+aiohttp>=3.9

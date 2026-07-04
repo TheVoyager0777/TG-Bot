@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<!-- viewport-fit=cover：iOS 刘海/底栏 env(safe-area-inset-*) 必须靠它才非 0 -->
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Phantom Console</title>
+<!-- PWA：独立 app 安装（主屏图标 / 独立窗口 / 离线开壳 / Zune 启动色）-->
+<meta name="theme-color" content="#6366f1">
+<meta name="color-scheme" content="dark light">
+<meta name="background-color" content="#0c0c0f">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Phantom">
+<meta name="mobile-web-app-capable" content="yes">
+<!-- 本地 CSS 优先、立即渲染；高亮 CSS 异步加载（不阻塞首屏），加载后再 apply -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="stylesheet" href="/css/console.css?v=45">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" media="print" onload="this.media='all'">
+<!-- 外部脚本 defer：不阻塞解析/首屏；CDN 慢或被墙时页面照常渲染（hljs 用时已 guard，
+     telegram-web-app 在 DOMContentLoaded 前按序就绪，boot 仍能读到 window.Telegram） -->
+<script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.0/marked.min.js"></script>
+<!-- API_BASE -->
+</head>
+<body>
+
+<!-- Zune 启动屏：巨字 wordmark（首帧即显，app.js 引导完成后淡出移除）-->
+<div id="splash">
+  <div class="sp-word">phantom</div>
+  <div class="sp-sub">Console</div>
+  <div class="sp-bar"><i></i></div>
+</div>
+
+<!-- AskUserQuestion Modal -->
+<div id="askq-overlay" class="hidden"></div>
+
+<!-- Control Panel Modal -->
+<div id="ctrl-overlay" class="hidden">
+  <div id="ctrl-card">
+    <h3>⚙ LLM 控制面板</h3>
+    <div id="ctrl-card-inner"></div>
+    <button id="ctrl-close" class="close-btn">关闭</button>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-overlay" class="hidden">
+  <div id="settings-card">
+    <h3>🎨 外观设置</h3>
+
+    <!-- ── Live preview strip ── -->
+    <div id="settings-preview">
+      <div class="spv-bg-pattern"></div>
+      <div class="spv-overlay-mask"></div>
+      <div class="spv-glass-panel"></div>
+      <div class="spv-row">
+        <div class="spv-bubble-wrap">
+          <div class="spv-bubble">你好，Phantom</div>
+        </div>
+        <div class="spv-card">
+          <div class="spv-card-bar">🤖 AI 回复</div>
+          <div class="spv-card-body">卡片透明度 · 面板玻璃 · 遮罩深度</div>
+        </div>
+      </div>
+      <div class="spv-meta">
+        <span class="spv-font-label">文字大小预览</span>
+      </div>
+    </div>
+
+    <div id="settings-inner">
+      <!-- ── 颜色与主题 ── -->
+      <div class="ssec"><span class="ssec-label">🎯 颜色与主题</span></div>
+      <div class="srow"><span class="skey">主题</span>
+        <div class="sbtns">
+          <button id="s-theme-indigo" class="sbtn-sm on">靛蓝</button>
+          <button id="s-theme-mono" class="sbtn-sm">Fluent 单色</button>
+        </div>
+      </div>
+      <div class="srow"><span class="skey">强调色</span>
+        <div id="accent-swatches" class="sswatches"></div>
+      </div>
+      <div class="srow"><span class="skey">色彩模式</span>
+        <div class="sbtns">
+          <button id="s-scheme-dark" class="sbtn-sm on">深色</button>
+          <button id="s-scheme-light" class="sbtn-sm">浅色</button>
+          <button id="s-scheme-auto" class="sbtn-sm">自动</button>
+        </div>
+      </div>
+      <div class="srow"><span class="skey">气泡文字色</span>
+        <input type="color" id="s-bubble-text" value="#ffffff" class="scolor">
+        <span class="sval" id="s-bubble-text-val">#ffffff</span>
+      </div>
+
+      <!-- ── 玻璃与透明 ── -->
+      <div class="ssec"><span class="ssec-label">🪟 玻璃与透明</span></div>
+      <div class="srow"><span class="skey">面板模糊<span class="skey-hint">背景毛玻璃强度</span></span>
+        <input type="range" id="s-blur" min="0" max="30" value="12" class="sslider">
+        <span class="sval" id="s-blur-val">12px</span>
+        <button id="s-blur-off" class="sbtn-sm">关闭</button>
+      </div>
+      <div class="srow"><span class="skey">面板透明度<span class="skey-hint">UI 面板的通透程度</span></span>
+        <input type="range" id="s-opacity" min="0" max="70" value="28" class="sslider">
+        <span class="sval" id="s-opacity-val">28%</span>
+      </div>
+      <div class="srow"><span class="skey">气泡模糊<span class="skey-hint">用户消息气泡模糊</span></span>
+        <input type="range" id="s-bubble-blur" min="0" max="24" value="12" class="sslider">
+        <span class="sval" id="s-bubble-blur-val">12px</span>
+      </div>
+      <div class="srow"><span class="skey">气泡透明度<span class="skey-hint">用户消息气泡通透度</span></span>
+        <input type="range" id="s-bubble-opacity" min="10" max="90" value="52" class="sslider">
+        <span class="sval" id="s-bubble-opacity-val">52%</span>
+      </div>
+      <div class="srow"><span class="skey">AI 回复透明度<span class="skey-hint">AI 消息卡片通透度</span></span>
+        <input type="range" id="s-assistant-opacity" min="5" max="80" value="40" class="sslider">
+        <span class="sval" id="s-assistant-opacity-val">40%</span>
+      </div>
+
+      <!-- ── 背景 ── -->
+      <div class="ssec"><span class="ssec-label">🖼️ 背景</span></div>
+      <div class="srow srow-col">
+        <span class="skey">背景图片<span class="skey-hint">URL 或本地文件</span></span>
+        <div class="bg-preview-row">
+          <div id="bg-preview" class="bg-preview"></div>
+          <div class="bg-presets" id="bg-presets"></div>
+        </div>
+        <div class="bg-url-row">
+          <input type="text" id="s-bg" placeholder="图片 URL…" class="stext">
+          <button id="s-bg-file" class="sbtn-sm" title="本地文件">📁</button>
+          <button id="s-bg-clear" class="sbtn-sm">✕</button>
+          <input type="file" id="s-bg-input" accept="image/*" style="display:none">
+        </div>
+      </div>
+      <div class="srow"><span class="skey">背景模糊<span class="skey-hint">背景图片虚化程度</span></span>
+        <input type="range" id="s-bg-blur" min="0" max="24" value="0" class="sslider">
+        <span class="sval" id="s-bg-blur-val">0px</span>
+      </div>
+      <div class="srow"><span class="skey">遮罩深度<span class="skey-hint">背景覆盖层不透明度</span></span>
+        <input type="range" id="s-overlay" min="40" max="95" value="78" class="sslider">
+        <span class="sval" id="s-overlay-val">78%</span>
+      </div>
+
+      <!-- ── 布局 ── -->
+      <div class="ssec"><span class="ssec-label">📐 布局</span></div>
+      <div class="srow"><span class="skey">字体大小</span>
+        <input type="range" id="s-fontsize" min="11" max="18" value="14" class="sslider">
+        <span class="sval" id="s-fontsize-val">14px</span>
+      </div>
+      <div class="srow"><span class="skey">侧栏宽度</span>
+        <input type="range" id="s-sidebarw" min="200" max="420" value="260" class="sslider">
+        <span class="sval" id="s-sidebarw-val">260px</span>
+      </div>
+      <div class="srow"><span class="skey">圆角大小</span>
+        <input type="range" id="s-radius" min="0" max="20" value="10" class="sslider">
+        <span class="sval" id="s-radius-val">10px</span>
+      </div>
+      <div class="srow"><span class="skey">界面密度</span>
+        <div class="sbtns">
+          <button id="s-density-compact" class="sbtn-sm">紧凑</button>
+          <button id="s-density-normal" class="sbtn-sm on">标准</button>
+          <button id="s-density-comfortable" class="sbtn-sm">舒适</button>
+        </div>
+      </div>
+
+      <!-- ── 其他 ── -->
+      <div class="ssec"><span class="ssec-label">⚡ 其他</span></div>
+      <div class="srow"><span class="skey">动画效果</span>
+        <button id="s-animate" class="sbtn-sm on">开启</button>
+      </div>
+      <div class="srow"><span class="skey">数据通道</span>
+        <select id="s-transport" class="ssel">
+          <option value="poll">长轮询 (稳定)</option>
+          <option value="ws">WebSocket (低延迟)</option>
+          <option value="auto">自动 (优先 WS)</option>
+        </select>
+      </div>
+    </div>
+    <div class="sacts">
+      <button id="settings-reset" class="sbtn">重置默认</button>
+      <button id="settings-close" class="close-btn">完成</button>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- 待处理操作条：审批 / 提问挂起时吸顶提示，点按滚到首条 -->
+<div id="pendingBar" class="hidden" role="status" aria-live="polite"></div>
+
+<!-- Top Status Bar：只显示连接状态 + 侧栏开关 -->
+<header id="topbar">
+  <span id="dot"></span>
+  <!-- WP 经典 5 点流动 loader：纯 CSS 驱动，#dot 失去 .on（断连/重连）时显示 -->
+  <div id="metroLoader"><i></i><i></i><i></i><i></i><i></i></div>
+  <span class="status-text" id="statusText">连接中…</span>
+  <button id="stopAllBtn" title="中断所有正在运行的会话">⛔ 全停</button>
+  <button id="hubBtn">⊞ HUB</button>
+  <button id="sidebarToggle">☰ 面板</button>
+</header>
+
+<!-- Metro Panorama Hub：全屏多面板无界横滑 + 视差大标题（hub.js 驱动）-->
+<div id="hub" class="hidden">
+  <div id="hubTitle">PHANTOM</div>
+  <button id="hubClose" title="关闭 (Esc)">✕</button>
+  <div id="hubScroller">
+    <section class="hub-panel"><h2>概览</h2><div class="hub-body" id="hubOverview"></div></section>
+    <section class="hub-panel"><h2>已接管</h2><div class="hub-body" id="hubActive"></div></section>
+    <section class="hub-panel"><h2>待办</h2><div class="hub-body" id="hubTodos"></div></section>
+    <section class="hub-panel"><h2>会话</h2><div class="hub-body" id="hubSessions"></div></section>
+    <section class="hub-panel"><h2>接管</h2><div class="hub-body" id="hubTakeover"></div></section>
+    <section class="hub-panel"><h2>构建</h2><div class="hub-body" id="hubBuild"></div></section>
+    <section class="hub-panel"><h2>主题</h2><div class="hub-body" id="hubTheme"></div></section>
+  </div>
+  <div id="hubNav"></div>
+  <!-- Metro App Bar：底部圆形命令键（刷新 / 跳主题面板 / 关闭）-->
+  <div id="hubAppbar">
+    <button class="cmd" id="hubCmdRefresh"><span class="ic">⟳</span>刷新</button>
+    <button class="cmd" id="hubCmdTheme"><span class="ic">🎨</span>主题</button>
+    <button class="cmd" id="hubCmdClose"><span class="ic">✕</span>关闭</button>
+  </div>
+</div>
+
+<!-- Main Layout -->
+<div id="main">
+  <div id="feed"></div>
+  <aside id="side">
+    <div class="side-head">
+      <span class="sec-title" style="margin:0">📋 待办</span>
+      <span class="side-actions">
+        <button id="todoRefresh" title="查询/刷新待办">🔄</button>
+        <button id="todoClear" title="清空当前视图待办">🗑</button>
+      </span>
+    </div>
+    <div id="todos"><div style="color:var(--text3);font-size:11px;">暂无待办</div></div>
+    <div id="queueSec" class="hidden"><div class="sec-title">⏳ 排队</div></div>
+    <div id="bgTasksSec" class="hidden"><div class="sec-title">⚡ 后台任务</div><div id="bgTasksList"></div></div>
+  </aside>
+</div>
+
+<!-- Drag-drop overlay -->
+<div id="dropOverlay"><div class="drop-msg"><span class="drop-icon">📎</span>释放以上传文件</div></div>
+
+<!-- Jump to bottom -->
+<button id="jump">↓</button>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Bottom Composer -->
+<div id="composer">
+  <div id="sessionTabs">
+    <button class="stab active" data-session="main">main</button>
+  </div>
+  <div id="composerInner">
+    <button id="ctrlBtn">⚙ LLM</button>
+    <textarea id="input" rows="1" placeholder="发送消息… (Enter 发送, Shift+Enter 换行)"></textarea>
+    <button id="stopBtn">⊘ 中断</button>
+    <button id="sendBtn">↑</button>
+  </div>
+</div>
+
+<script src="/js/bundle.js?v=45"></script>
+</body>
+</html>

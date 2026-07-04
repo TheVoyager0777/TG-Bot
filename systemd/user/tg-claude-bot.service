@@ -1,0 +1,22 @@
+[Unit]
+Description=Phantom Telegram control bot
+After=network-online.target
+Wants=network-online.target
+Wants=phantom-console.service phantom-network.service llm-frontend.service phantom-infiniproxy.service
+After=phantom-console.service phantom-network.service llm-frontend.service phantom-infiniproxy.service
+ConditionPathExists=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml
+StartLimitIntervalSec=60
+StartLimitBurst=3
+
+[Service]
+Type=simple
+WorkingDirectory=/home/voyager/桌面/Workspace/PhantomControlPlane
+Environment=PATH=/home/voyager/.nvm/versions/node/v24.15.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=/home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot:/home/voyager/桌面/Workspace/PhantomControlPlane/modules/phantom-console:/home/voyager/桌面/Workspace/PhantomControlPlane/modules/phantom-network:/home/voyager/桌面/Workspace/PhantomControlPlane/LLM_Frontend:/home/voyager/桌面/Workspace/PhantomControlPlane/LLM_Backend:/home/voyager/桌面/Workspace/PhantomControlPlane/modules/infiniproxy
+Environment=PHANTOM_CONSOLE_EXTERNAL=1
+ExecStart=/usr/bin/python3 /home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/bot.py /home/voyager/桌面/Workspace/PhantomControlPlane/modules/tg-claude-bot/config.toml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

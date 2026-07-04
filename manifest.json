@@ -1,0 +1,201 @@
+{
+  "schema_version": 1,
+  "name": "PhantomControlPlane",
+  "description": "Unified repo for Telegram bot, Web/PWA console, LLM frontend/backend, and Infiniproxy services.",
+  "created_at": "2026-06-26",
+  "modules": [
+    {
+      "id": "tg-claude-bot",
+      "path": "modules/tg-claude-bot",
+      "kind": "telegram-bot",
+      "version": "1.10.1",
+      "description": "Telegram control bot for Phantom agent services",
+      "entrypoints": {
+        "foreground": "python3 bot.py [config.toml]",
+        "systemd_user": "systemd/user/tg-claude-bot.service"
+      },
+      "startup": {
+        "chains": [
+        "phantom-console.service",
+        "phantom-network.service",
+        "llm-frontend.service",
+        "phantom-infiniproxy.service"
+        ],
+        "notification": "Sends a Telegram startup status message with bot/console/llm/infiniproxy state and version metadata."
+      },
+      "commands": {
+        "service_control": "/svc status|start|stop|restart [console|llm|infiniproxy|network|all]",
+        "service_status": "/svcstatus",
+        "version": "/version",
+        "backend": "/backend [claude-code|codex]"
+      },
+      "depends_on": [
+        "phantom-console",
+        "phantom-network",
+        "LLM_Frontend",
+        "LLM_Backend",
+        "infiniproxy"
+      ],
+      "secrets": [
+        "config.toml",
+        "providers.toml"
+      ]
+    },
+    {
+      "id": "phantom-network",
+      "path": "modules/phantom-network",
+      "kind": "network-contact-book",
+      "version": "0.1.0",
+      "description": "Contact book and Cloudflare quick tunnel domain pool for Phantom submodules",
+      "entrypoints": {
+        "module": "python3 -m phantom_network.cli serve|start|status|stop|version|register|resolve|contacts",
+        "script": "phantom-network",
+        "systemd_user": "systemd/user/phantom-network.service"
+      },
+      "ports": {
+        "api_default": 8890
+      },
+      "local_api": [
+        "GET /health",
+        "GET /contacts",
+        "GET /resolve/{name}",
+        "POST /register"
+      ],
+      "runtime_state": [
+        "~/.config/phantom-network/addressbook.json",
+        "~/.config/tg-cf-tunnels.json"
+      ],
+      "capabilities": [
+        "stable logical contact names",
+        "Cloudflare quick tunnel domain pool",
+        "multi-lane tunnel registration",
+        "compatibility export for existing console links"
+      ]
+    },
+    {
+      "id": "phantom-console",
+      "path": "modules/phantom-console",
+      "kind": "web-console",
+      "version": "0.2.0",
+      "description": "Phantom Web/PWA console service",
+      "entrypoints": {
+        "module": "python3 -m phantom_console.cli serve|start|status|stop|version",
+        "script": "phantom-console",
+        "systemd_user": "systemd/user/phantom-console.service"
+      },
+      "ports": {
+        "api_default": 8765,
+        "static_default": 8766
+      },
+      "runtime_state": [
+        "~/.config/phantom-console/phantom-console.pid",
+        "~/.config/phantom-console/phantom-console.log"
+      ]
+    },
+    {
+      "id": "LLM_Frontend",
+      "path": "LLM_Frontend",
+      "kind": "llm-frontend-daemon",
+      "version": "0.4.0",
+      "description": "Phantom LLM_Frontend daemon and local API",
+      "entrypoints": {
+        "module": "python3 -m phantom_llm.daemon serve|start|status|stop|version",
+        "script": "phantom-llm",
+        "systemd_user": "systemd/user/llm-frontend.service",
+        "systemd_user_compat": "systemd/user/phantom-llm.service"
+      },
+      "ports": {
+        "api_default": 8799
+      },
+      "local_api": [
+        "GET /health",
+        "GET /state",
+        "POST /run",
+        "GET /backend",
+        "POST /backend",
+        "POST /worker",
+        "DELETE /worker/{name}",
+        "POST /interrupt",
+        "POST /shutdown",
+        "GET /sessions",
+        "GET /sessions/{name}",
+        "POST /sessions",
+        "DELETE /sessions/{name}",
+        "POST /sessions/{name}/model",
+        "POST /mode",
+        "GET /providers",
+        "POST /providers/active"
+      ],
+      "runtime_state": [
+        "~/.config/phantom-llm/phantom-llm.pid",
+        "~/.config/phantom-llm/phantom-llm.log"
+      ],
+      "security_defaults": [
+        "Standalone daemon denies interactive tool approvals by default.",
+        "bypassPermissions requires --allow-bypass."
+      ]
+    },
+    {
+      "id": "LLM_Backend",
+      "path": "LLM_Backend",
+      "kind": "llm-cli-backends",
+      "version": "0.3.0",
+      "description": "Independent CLI backend adapters for Claude Code and Codex",
+      "entrypoints": {
+        "python_package": "llm_backend",
+        "backends": [
+          "claude-code",
+          "codex"
+        ]
+      },
+      "configuration": {
+        "config_section": "[llm_backend]",
+        "active_values": [
+          "claude-code",
+          "codex"
+        ]
+      },
+      "capabilities": [
+        "stream",
+        "interrupt",
+        "resume_session",
+        "tools",
+        "permission_mode",
+        "model",
+        "cwd",
+        "attachments"
+      ]
+    },
+    {
+      "id": "infiniproxy",
+      "path": "modules/infiniproxy",
+      "kind": "api-proxy",
+      "version": "0.1.0",
+      "description": "OpenAI-compatible to Anthropic API proxy service",
+      "entrypoints": {
+        "module": "python3 -m phantom_infiniproxy.cli serve|start|status|stop|version",
+        "script": "phantom-infiniproxy",
+        "systemd_user": "systemd/user/phantom-infiniproxy.service"
+      },
+      "ports": {
+        "api_default": 8010
+      },
+      "local_api": [
+        "GET /health",
+        "GET /admin",
+        "POST /v1/messages",
+        "POST /v1/chat/completions"
+      ],
+      "runtime_state": [
+        "~/.config/phantom-infiniproxy/phantom-infiniproxy.pid",
+        "~/.config/phantom-infiniproxy/phantom-infiniproxy.log",
+        "modules/infiniproxy/.env",
+        "modules/infiniproxy/proxy_users.db"
+      ],
+      "secrets": [
+        "modules/infiniproxy/.env",
+        "modules/infiniproxy/proxy_users.db"
+      ]
+    }
+  ]
+}

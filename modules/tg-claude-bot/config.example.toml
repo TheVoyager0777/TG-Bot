@@ -1,0 +1,48 @@
+# tg-claude-bot 配置。复制为 config.toml 后填值。config.toml 已被 .gitignore。
+[telegram]
+# @BotFather 给的 token
+token = "123456:ABC-DEF..."
+# 唯一允许使用本 bot 的 Telegram 数字用户 id（私聊）。其它人一律忽略。
+# 不知道自己的 id：先随便填一个启动，给 bot 发消息，日志会打印 "denied uid=..."。
+owner_id = 0
+# 文件转发群（可选）：接入的「其他群」只作单向文件出口——群成员的消息/命令一律
+# 不响应，只有你显式指定时才把文件转发过去。可写裸 chat_id 或 "chat_id:别名"。
+# 也可不写，运行时在目标群发 /forward here [别名] 动态登记（推荐，免手抄 id）。
+# forward_group_ids = ["-1001234567890:发布群", "-1009876543210"]
+
+[claude]
+# Claude 会话的工作目录（默认 = Platform_Phantom 仓根）
+cwd = "/home/voyager/桌面/Platform_Phantom"
+# 模型；留空用默认
+model = ""
+# 权限模式: default | acceptEdits | bypassPermissions | plan
+# default = 每个工具调用都走 TG 按钮批准（最安全，推荐）
+# acceptEdits = 自动批准文件编辑，其它仍问
+# bypassPermissions = 全自动，不问（危险，仅信任环境）
+permission_mode = "default"
+# 自动批准这些只读工具，不弹按钮（减少打扰）。设为 [] 则全部都问。
+auto_allow_tools = ["Read", "Glob", "Grep", "TodoWrite", "NotebookRead"]
+# 思考强度: low | medium | high（留空用默认）
+effort = ""
+
+[llm_frontend]
+# Bot normal chat uses this local frontend API.  The frontend owns core chat
+# execution; the bot only renders a minimal first-byte/processing/final UI.
+url = "http://127.0.0.1:8799"
+external_chat = true
+
+[llm_backend]
+# CLI backend used by LLM_Frontend: claude-code | codex
+active = "claude-code"
+claude_bin = "claude"
+codex_bin = "codex"
+codex_sandbox = "workspace-write"
+codex_approval = "never"
+
+[monitor]
+# ph 构建项目名（status/report/logs 默认项目）
+project = "KONA"
+# Platform_Phantom 仓根（跑 ph 用）
+repo = "/home/voyager/桌面/Platform_Phantom"
+# out 目录（监控产物 / 占用）
+out_dir = "/opt/ph-out"

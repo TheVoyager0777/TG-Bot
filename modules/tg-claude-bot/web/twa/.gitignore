@@ -1,0 +1,6 @@
+# Bubblewrap / TWA 构建产物（运行时生成，勿入库）
+build/
+*.apk
+*.aab
+*.keystore
+android.keystore

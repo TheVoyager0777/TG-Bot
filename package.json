@@ -1,0 +1,14 @@
+{
+  "name": "phantom-control-plane",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Project-level Playwright smoke tests for Phantom Control Plane.",
+  "scripts": {
+    "test:e2e": "playwright test",
+    "test:e2e:console": "playwright test tests/console.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "toml": "^3.0.0"
+  }
+}

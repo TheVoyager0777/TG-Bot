@@ -1,0 +1,26 @@
+[project]
+name = "phantom-console"
+version = "0.2.0"
+description = "Phantom Web/PWA console service"
+requires-python = ">=3.10"
+dependencies = [
+  "aiohttp>=3.9",
+]
+
+[project.scripts]
+phantom-console = "phantom_console.cli:main"
+
+[tool.setuptools]
+packages = ["phantom_console"]
+
+[tool.setuptools.package-data]
+phantom_console = [
+  "*.html",
+  "*.webmanifest",
+  "*.js",
+  "css/*.css",
+  "js/*.js",
+  "icons/*.png",
+  ".well-known/*.json",
+  "twa/*",
+]

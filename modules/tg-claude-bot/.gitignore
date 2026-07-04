@@ -1,0 +1,11 @@
+config.toml
+.runtime/
+__pycache__/
+*.pyc
+*.log
+providers.toml
+*.bak
+*.bak.*
+tg_forward_state.json
+core/tg_forward_state.json
+sessions.json

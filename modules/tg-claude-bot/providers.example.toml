@@ -1,0 +1,38 @@
+# providers.toml — LLM provider 路由表（敏感：含 token，已 gitignore）
+#
+# 每个 [[provider]] 是一个 Anthropic 协议兼容端点。注意：底层是 Claude Code CLI，
+# 只会说 Anthropic Messages API 协议——所以这里只能填 Anthropic 官方 / 第三方中转 /
+# 自建反代 / Bedrock-Vertex 网关 / 或把别的模型包成 Anthropic 协议的网关(LiteLLM 等)。
+#
+# 字段:
+#   name      唯一标识(TG 里用它选 provider)
+#   base_url  → 注入 ANTHROPIC_BASE_URL
+#   auth_token→ 注入 ANTHROPIC_AUTH_TOKEN(留空则用环境/settings.json 里的)
+#   priority  数字越小优先级越高;fallback 按此升序尝试
+#   default   true 的那个是全局默认(只认第一个 true)
+#   models    可选模型名映射,注入 ANTHROPIC_DEFAULT_{OPUS,SONNET,HAIKU}_MODEL[_NAME]
+#   timeout   可选,注入 ANTHROPIC_REQUEST_TIMEOUT(秒)
+
+[[provider]]
+name = "figure"
+base_url = "https://figure.jiangsuocean.cn"
+# 留空 = 沿用 ~/.claude/settings.json / 环境里的 ANTHROPIC_AUTH_TOKEN
+auth_token = ""
+priority = 10
+default = true
+[provider.models]
+opus = "claude-opus-4-8[1M]"
+sonnet = "claude-opus-4-7[1M]"
+haiku = "claude-opus-4-6"
+
+# ── 第二个端点：把下面占位换成你的真实 base_url + token ──
+[[provider]]
+name = "backup"
+base_url = "https://CHANGE-ME.example.com"
+auth_token = "PASTE-YOUR-TOKEN-HERE"
+priority = 20
+default = false
+[provider.models]
+opus = "claude-opus-4-8"
+sonnet = "claude-sonnet-4-6"
+haiku = "claude-haiku-4-5-20251001"
